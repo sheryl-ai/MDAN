@@ -44,6 +44,7 @@ torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
 amazon = np.load("./amazon.npz")
+print (amazon)
 amazon_xx = coo_matrix((amazon['xx_data'], (amazon['xx_col'], amazon['xx_row'])),
                        shape=amazon['xx_shape'][::-1]).tocsc()
 amazon_xx = amazon_xx[:, :args.dimension]
@@ -64,6 +65,7 @@ data_insts, data_labels, num_insts = [], [], []
 for i in range(num_data_sets):
     data_insts.append(amazon_xx[amazon_offset[i]: amazon_offset[i+1], :])
     data_labels.append(amazon_yy[amazon_offset[i]: amazon_offset[i+1], :])
+    print (np.sum(data_insts[i], 1).shape)
     logger.info("Length of the {} data set label list = {}, label values = {}, label balance = {}".format(
         data_name[i],
         amazon_yy[amazon_offset[i]: amazon_offset[i + 1], :].shape[0],
@@ -76,6 +78,10 @@ for i in range(num_data_sets):
     np.random.shuffle(r_order)
     data_insts[i] = data_insts[i][r_order, :]
     data_labels[i] = data_labels[i][r_order, :]
+    print (len(data_insts))
+    print (data_insts[0].shape)
+    print (len(data_labels))
+    print (data_labels[0].shape)
 logger.info("Data sets: {}".format(data_name))
 logger.info("Number of total instances in the data sets: {}".format(num_insts))
 # Partition the data set into training and test parts, following the convention in the ICML-2012 paper, use a fixed
@@ -102,6 +108,7 @@ if args.model == "mdan":
     logger.info("Training with domain adaptation using PyTorch madnNet: ")
     logger.info("Hyperparameter setting = {}.".format(configs))
     error_dicts = {}
+    # print (num_domains) 3 -- number of source domains
     for i in range(num_data_sets):
         # Build source instances.
         source_insts = []
@@ -124,6 +131,11 @@ if args.model == "mdan":
             running_loss = 0.0
             train_loader = multi_data_loader(source_insts, source_labels, batch_size)
             for xs, ys in train_loader:
+                # print ('-----')
+                # print (len(xs)) 3
+                # print (xs[0].shape) 20x5000 -- 20 is batch size, 5000 is feat dim
+                # print (xs[1].shape) 20x5000
+                # print (xs[2].shape) 20x5000
                 slabels = torch.ones(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
                 tlabels = torch.zeros(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
                 for j in range(num_domains):
@@ -157,6 +169,7 @@ if args.model == "mdan":
         preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
         pred_acc = torch.sum(preds_labels == target_labels).item() / float(target_insts.size(0))
         error_dicts[data_name[i]] = preds_labels.numpy() != target_labels.numpy()
+
         logger.info("Prediction accuracy on {} = {}, time used = {} seconds.".
                     format(data_name[i], pred_acc, time_end - time_start))
         results[data_name[i]] = pred_acc
@@ -166,4 +179,3 @@ if args.model == "mdan":
     logger.info("*" * 100)
 else:
     raise ValueError("No support for the following model: {}.".format(args.model))
-
